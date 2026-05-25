@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="PPL Tracker" />
+<meta name="theme-color" content="#0a0a0c" />
+<title>PPL Tracker</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230a0a0c'/%3E%3Ctext x='50%25' y='52%25' dominant-baseline='middle' text-anchor='middle' font-family='-apple-system,sans-serif' font-size='90' font-weight='900' fill='%23facc15'%3EPPL%3C/text%3E%3C/svg%3E" />
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    background: #0a0a0c; color: #ebebf0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  input, textarea, button { font-family: inherit; }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
+  .safe-top { padding-top: env(safe-area-inset-top); }
+  .safe-bot { padding-bottom: env(safe-area-inset-bottom); }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="module">
+// =================================================================
+// PPL TRACKER — Standalone version
+// Uses localStorage for persistence (rock-solid, no chat dependency)
+// =================================================================
+
+// ============ PROGRAM DATA ============
+const PROGRAM = {
+  pull: {
+    name: 'Pull', color: '#dc2626', timeEstimate: '~45 min',
+    primer: [
+      '90/90 hip switches × 6/side',
+      'Cat-cow + thoracic extension × 8',
+      'Band pull-aparts × 15',
+      'Scap pull-ups / dead hang × 20s',
+      'Glute bridges × 10'
+    ],
+    exercises: [
+      { id: 'dl', name: 'Conventional Deadlift', sets: 4, reps: '5', repMin: 5, repMax: 5, rest: '2.5 min', rpe: '7-8', rpeTarget: 8, increment: 10, kind: 'lower',
+        cues: 'Brace HARD before pulling. Push floor away. Hips & shoulders rise together. Stop set if back rounds.' },
+      { id: 'row', name: 'Chest-Supported Row', sets: 3, reps: '8-10', repMin: 8, repMax: 10, rest: '90s', rpe: '8', rpeTarget: 8, increment: 5, kind: 'upper',
+        cues: 'Pull elbows BEHIND body. Squeeze blades. No torso swing.' },
+      { id: 'pd', name: 'Lat Pulldown', sets: 3, reps: '10-12', repMin: 10, repMax: 12, rest: '75s', rpe: '8', rpeTarget: 8, increment: 5, kind: 'upper',
+        cues: 'Lead with elbows down + back. Slight backward lean. 2s eccentric.' },
+      { id: 'fp_curl', name: 'Face Pull + Hammer Curl (SS)', sets: 3, reps: '12 / 10', repMin: 10, repMax: 12, rest: '60s', rpe: '8-9', rpeTarget: 9, increment: 2.5, kind: 'iso',
+        cues: 'Face pull: high elbows, ext rotation. Curl: neutral grip, no swing.' },
+      { id: 'pallof', name: 'Pallof Press', sets: 2, reps: '10/side', repMin: 10, repMax: 10, rest: '45s', rpe: '7', rpeTarget: 7, increment: 5, kind: 'iso',
+        cues: "Resist rotation, don't create it. Hold 2s. GOLF: anti-rotation for backswing control." }
+    ]
+  },
+  push: {
+    name: 'Push', color: '#2563eb', timeEstimate: '~47 min',
+    primer: [
+      'Shoulder CARs × 3/side (slow)',
+      'Deep squat hold + T-spine rotation × 30s',
+      'Scap push-ups × 10',
+      'Band pull-aparts × 15',
+      'Wall slides × 8'
+    ],
+    exercises: [
+      { id: 'bench', name: 'Flat Bench Press', sets: 4, reps: '6-8', repMin: 6, repMax: 8, rest: '2.5 min', rpe: '7-8', rpeTarget: 8, increment: 5, kind: 'upper',
+        cues: 'Blades pinned & retracted. Slight arch. Elbows ~45°. Touch chest, pause.' },
+      { id: 'ohp', name: 'Standing DB Overhead Press', sets: 3, reps: '8', repMin: 8, repMax: 8, rest: '2 min', rpe: '8', rpeTarget: 8, increment: 5, kind: 'upper',
+        cues: 'Brace core, glutes tight. Press through earlobes. Full lockout.' },
+      { id: 'inc', name: 'Incline DB Press (30°)', sets: 3, reps: '10', repMin: 10, repMax: 10, rest: '90s', rpe: '8-9', rpeTarget: 9, increment: 5, kind: 'upper',
+        cues: 'DBs follow slight arc. Stretch at bottom.' },
+      { id: 'lat_tri', name: 'Lateral Raise + Tri Pushdown (SS)', sets: 3, reps: '12 / 12', repMin: 12, repMax: 12, rest: '60s', rpe: '9', rpeTarget: 9, increment: 2.5, kind: 'iso',
+        cues: 'Lat: slight forward lean, pinkies high. Pushdown: elbows locked, squeeze.' },
+      { id: 'mb', name: 'Med Ball Rotational Throw', sets: 3, reps: '5/side', repMin: 5, repMax: 5, rest: '60s', rpe: 'MAX intent', rpeTarget: null, increment: 0, kind: 'power',
+        cues: 'Drive ground→hips→torso→arms. Reset between reps. GOLF: clubhead speed.' }
+    ]
+  },
+  legs: {
+    name: 'Legs', color: '#16a34a', timeEstimate: '~50 min',
+    primer: [
+      '90/90 hip switches × 6/side',
+      'Adductor rockbacks × 10',
+      'Glute bridges × 15',
+      'BW squat to depth × 10',
+      'Ankle rocks × 10/side'
+    ],
+    exercises: [
+      { id: 'sq', name: 'Back Squat (alt: Front Squat)', sets: 4, reps: '6-8', repMin: 6, repMax: 8, rest: '2.5 min', rpe: '7-8', rpeTarget: 8, increment: 10, kind: 'lower',
+        cues: 'Brace, sit between hips. Knees over toes. Parallel or below. Alternate w/ FRONT SQUAT for adductors.' },
+      { id: 'rdl', name: 'Romanian Deadlift', sets: 3, reps: '8', repMin: 8, repMax: 8, rest: '2 min', rpe: '8', rpeTarget: 8, increment: 10, kind: 'lower',
+        cues: 'Soft knees, hinge hips. Feel hamstring stretch. NOT a deadlift — lighter.' },
+      { id: 'lun', name: 'Walking Lunge / Bulgarian SS', sets: 3, reps: '8/leg', repMin: 8, repMax: 8, rest: '90s', rpe: '8', rpeTarget: 8, increment: 5, kind: 'lower',
+        cues: 'Long stride = glutes. Front knee over mid-foot. GOLF: fixes L/R asymmetry.' },
+      { id: 'lc_calf', name: 'Leg Curl + Calf Raise (SS)', sets: 3, reps: '12 / 15', repMin: 12, repMax: 12, rest: '60s', rpe: '9', rpeTarget: 9, increment: 5, kind: 'iso',
+        cues: 'Curl: full ROM, squeeze top. Calf: full stretch, pause top.' },
+      { id: 'chop', name: 'Cable Woodchop / Landmine Rot', sets: 2, reps: '8/side', repMin: 8, repMax: 8, rest: '60s', rpe: 'Moderate', rpeTarget: 7, increment: 5, kind: 'power',
+        cues: 'Hips lead, arms follow. Rotate through T-spine. GOLF: power under load.' }
+    ]
+  }
+};
+
+// ============ STORAGE (localStorage — synchronous, reliable) ============
+const KEYS = {
+  sessions: 'ppl.sessions.v1',
+  readiness: 'ppl.readiness.v1',
+  bodyComp: 'ppl.bodycomp.v1'
+};
+
+function load(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (e) { console.warn('load failed', key, e); return fallback; }
+}
+function save(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+  catch (e) { console.error('save failed', key, e); return false; }
+}
+
+// ============ STATE ============
+let state = {
+  sessions: load(KEYS.sessions, []),
+  readiness: load(KEYS.readiness, []),
+  bodyComp: load(KEYS.bodyComp, []),
+  view: { name: 'home' },
+  toast: null,
+  toastTimer: null,
+  // session-local working state
+  sessionLogs: {},
+  sessionExRPE: {},
+  sessionRPE: '',
+  sessionNotes: '',
+  activeIdx: 0,
+  expandedCues: {},
+  showPrimer: true,
+  // modal-local state
+  readinessForm: {},
+  bodyCompForm: {}
+};
+
+function persistSessions(next) { state.sessions = next; return save(KEYS.sessions, next); }
+function persistReadiness(next) { state.readiness = next; return save(KEYS.readiness, next); }
+function persistBodyComp(next) { state.bodyComp = next; return save(KEYS.bodyComp, next); }
+
+function showToast(msg, color = '#22c55e') {
+  state.toast = { msg, color };
+  if (state.toastTimer) clearTimeout(state.toastTimer);
+  state.toastTimer = setTimeout(() => { state.toast = null; render(); }, 2400);
+  render();
+}
+
+function setView(view) {
+  state.view = view;
+  if (view.name === 'session') {
+    // reset working state
+    const day = PROGRAM[view.day];
+    state.sessionLogs = {};
+    day.exercises.forEach(ex => {
+      state.sessionLogs[ex.id] = Array(ex.sets).fill(null).map(() => ({ wt: '', reps: '' }));
+    });
+    state.sessionExRPE = {};
+    state.sessionRPE = '';
+    state.sessionNotes = '';
+    state.activeIdx = 0;
+    state.expandedCues = {};
+    state.showPrimer = true;
+  }
+  if (view.name === 'readiness') state.readinessForm = {};
+  if (view.name === 'bodycomp') state.bodyCompForm = {};
+  window.scrollTo(0, 0);
+  render();
+}
+
+// ============ UTILITIES ============
+const today = () => new Date().toISOString().split('T')[0];
+const fmtDate = (s) => {
+  if (!s) return '';
+  const d = new Date(s + 'T00:00:00');
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+};
+function downloadCSV(filename, rows) {
+  const csv = rows.map(r => r.map(c => {
+    const s = String(c ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function downloadJSON(filename, obj) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ============ PROGRESSION ENGINE ============
+function suggestProgression(exercise, prevSession, recentReadiness) {
+  if (!prevSession || !prevSession.logs || !prevSession.logs[exercise.id]) {
+    return { suggestedWeight: null, label: 'NO HISTORY', rationale: 'Log this session — progression appears next time.', color: '#969ba0' };
+  }
+  if (exercise.kind === 'power' || exercise.increment === 0) {
+    return { suggestedWeight: null, label: 'MAINTAIN', rationale: 'Power lift — focus on max intent, not load.', color: '#969ba0' };
+  }
+  const prevSets = prevSession.logs[exercise.id] || [];
+  const validSets = prevSets.filter(s => s.wt && s.reps);
+  if (validSets.length === 0) {
+    return { suggestedWeight: null, label: 'NO DATA', rationale: 'Last session had no logged sets.', color: '#969ba0' };
+  }
+  const weights = validSets.map(s => parseFloat(s.wt));
+  const reps = validSets.map(s => parseInt(s.reps));
+  const lastWeight = Math.max(...weights);
+  const hitTop = reps.every(r => r >= exercise.repMax);
+  const hitBottom = reps.every(r => r >= exercise.repMin);
+  const minRepsHit = Math.min(...reps);
+  const avgReps = reps.reduce((a, b) => a + b, 0) / reps.length;
+  const sessionRPE = parseFloat(prevSession.exerciseRPE?.[exercise.id]);
+  const target = exercise.rpeTarget;
+  const readinessAvg = recentReadiness && recentReadiness.length > 0
+    ? recentReadiness[recentReadiness.length - 1].avg : null;
+
+  if (readinessAvg != null && readinessAvg < 6) {
+    return { suggestedWeight: lastWeight, label: 'HOLD',
+      rationale: `Readiness ${readinessAvg.toFixed(1)} — hold loads, focus on quality.`,
+      color: '#fb923c' };
+  }
+  if (!hitBottom || (!isNaN(sessionRPE) && sessionRPE >= 9.5)) {
+    return { suggestedWeight: Math.max(lastWeight - exercise.increment, 0), label: 'BACK OFF',
+      rationale: !hitBottom ? `Missed bottom of ${exercise.repMin}-rep range (got ${minRepsHit}). Drop ${exercise.increment} lb.`
+        : `RPE ${sessionRPE} too high. Drop ${exercise.increment} lb for cleaner reps.`,
+      color: '#ef4444' };
+  }
+  if (hitTop) {
+    if (isNaN(sessionRPE) || sessionRPE <= target) {
+      return { suggestedWeight: lastWeight + exercise.increment, label: 'PROGRESS',
+        rationale: `Hit ${exercise.repMax} reps across${isNaN(sessionRPE) ? '' : ` @ RPE ${sessionRPE}`}. Add ${exercise.increment} lb.`,
+        color: '#22c55e' };
+    }
+    return { suggestedWeight: lastWeight, label: 'HOLD',
+      rationale: `Hit reps but RPE ${sessionRPE} > target ${target}. Hold until RPE drops.`,
+      color: '#facc15' };
+  }
+  return { suggestedWeight: lastWeight, label: 'PUSH REPS',
+    rationale: `Got ${avgReps.toFixed(1)} avg reps. Hold ${lastWeight} lb, push to ${exercise.repMax}.`,
+    color: '#3b82f6' };
+}
+
+// ============ DOM / RENDER ============
+const root = document.getElementById('root');
+
+const COL = {
+  bg: '#0a0a0c', panel: '#141418', panel2: '#1c1c21',
+  border: 'rgba(255,255,255,0.08)', borderStrong: 'rgba(255,255,255,0.15)',
+  text: '#ebebf0', textDim: '#969ba0', textFaint: '#64646e',
+  accent: '#facc15', green: '#22c55e', red: '#ef4444', blue: '#3b82f6', orange: '#fb923c'
+};
+
+function el(tag, attrs = {}, ...children) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'style' && typeof v === 'object') Object.assign(e.style, v);
+    else if (k === 'class') e.className = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (v !== false && v != null) e.setAttribute(k, v);
+  }
+  for (const c of children.flat()) {
+    if (c == null || c === false) continue;
+    if (typeof c === 'string' || typeof c === 'number') e.appendChild(document.createTextNode(c));
+    else e.appendChild(c);
+  }
+  return e;
+}
+
+function pill(text, opts = {}) {
+  const { color = COL.textDim, border = COL.border, bg = 'transparent' } = opts;
+  return el('span', { style: {
+    display: 'inline-flex', alignItems: 'center', gap: '4px',
+    padding: '3px 8px', borderRadius: '6px', fontSize: '11px',
+    fontWeight: '600', letterSpacing: '0.03em', textTransform: 'uppercase',
+    color, background: bg, border: `1px solid ${border}`,
+    fontFamily: 'ui-monospace, "SF Mono", Menlo, monospace'
+  }}, text);
+}
+
+function bigBtn(text, onClick, opts = {}) {
+  const { variant = 'primary', disabled = false, style = {} } = opts;
+  const variants = {
+    primary: { bg: COL.accent, color: '#000', border: COL.accent },
+    secondary: { bg: 'transparent', color: COL.text, border: COL.borderStrong },
+    danger: { bg: 'rgba(239,68,68,0.1)', color: COL.red, border: 'rgba(239,68,68,0.3)' }
+  };
+  const v = variants[variant];
+  const btn = el('button', {
+    onclick: disabled ? null : onClick,
+    style: {
+      background: v.bg, color: v.color, border: `1px solid ${v.border}`,
+      padding: '14px 18px', borderRadius: '10px', fontSize: '15px', fontWeight: '700',
+      letterSpacing: '0.02em', cursor: disabled ? 'not-allowed' : 'pointer',
+      opacity: disabled ? '0.4' : '1', touchAction: 'manipulation',
+      ...style
+    }
+  }, text);
+  return btn;
+}
+
+function sectionLabel(text) {
+  return el('div', { style: {
+    fontSize: '11px', letterSpacing: '0.2em', color: COL.textFaint,
+    fontWeight: '700', margin: '20px 0 10px'
+  }}, text);
+}
+
+// =================== HOME ===================
+function viewHome() {
+  const wrap = el('div', { style: { padding: '20px 16px 100px', maxWidth: '500px', margin: '0 auto' }});
+
+  // Header
+  const header = el('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }},
+    el('div', {},
+      el('div', { style: { fontSize: '11px', letterSpacing: '0.2em', color: COL.textFaint, fontWeight: '700', marginBottom: '4px' }}, 'HYPERTROPHY REBUILD'),
+      el('div', { style: { fontSize: '28px', fontWeight: '800', letterSpacing: '-0.02em' }}, 'PPL System')
+    ),
+    el('div', { style: { fontSize: '28px', color: COL.accent }, html: '💪' })
+  );
+  wrap.appendChild(header);
+
+  // Readiness card
+  const latest = state.readiness[state.readiness.length - 1];
+  const readinessCard = el('div', {
+    onclick: () => setView({ name: 'readiness' }),
+    style: { background: COL.panel, border: `1px solid ${COL.border}`, borderRadius: '14px', padding: '16px', marginBottom: '12px', cursor: 'pointer' }
+  });
+  readinessCard.appendChild(el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }},
+    el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' }},
+      el('span', { style: { color: COL.accent, fontSize: '14px' }}, '◉'),
+      el('span', { style: { fontSize: '12px', letterSpacing: '0.15em', fontWeight: '700', color: COL.textDim }}, 'READINESS')
+    ),
+    el('span', { style: { fontSize: '11px', color: COL.textFaint }}, latest ? fmtDate(latest.date) : 'not logged')
+  ));
+  if (latest) {
+    const scoreColor = latest.avg >= 7.5 ? COL.green : latest.avg >= 6 ? COL.accent : latest.avg >= 4.5 ? COL.orange : COL.red;
+    readinessCard.appendChild(el('div', { style: { display: 'flex', alignItems: 'baseline', gap: '12px' }},
+      el('div', { style: { fontFamily: 'ui-monospace, monospace', fontSize: '36px', fontWeight: '800', color: scoreColor }}, latest.avg.toFixed(1)),
+      el('div', { style: { fontSize: '13px', color: COL.textDim, fontWeight: '600' }}, latest.action)
+    ));
+  } else {
+    readinessCard.appendChild(el('div', { style: { fontSize: '14px', color: COL.textDim }}, "Tap to log today's readiness →"));
+  }
+  wrap.appendChild(readinessCard);
+
+  // Suggest next day
+  const last = state.sessions[state.sessions.length - 1];
+  const rotation = ['pull', 'push', 'legs'];
+  const nextSuggested = last ? rotation[(rotation.indexOf(last.day) + 1) % 3] : 'pull';
+
+  wrap.appendChild(sectionLabel('START SESSION'));
+
+  for (const [key, day] of Object.entries(PROGRAM)) {
+    const isSuggested = key === nextSuggested;
+    const lastForDay = [...state.sessions].reverse().find(s => s.day === key);
+    const btn = el('button', {
+      onclick: () => setView({ name: 'session', day: key }),
+      style: {
+        width: '100%', background: COL.panel,
+        border: `1px solid ${isSuggested ? day.color : COL.border}`,
+        borderRadius: '14px', padding: '18px', cursor: 'pointer', textAlign: 'left',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: '10px', position: 'relative', overflow: 'hidden',
+        color: COL.text, touchAction: 'manipulation'
+      }
+    });
+    btn.appendChild(el('div', { style: { position: 'absolute', left: '0', top: '0', bottom: '0', width: '4px', background: day.color }}));
+    const meta = el('div', { style: { paddingLeft: '8px' }},
+      el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }},
+        el('span', { style: { fontSize: '20px', fontWeight: '800', color: COL.text, letterSpacing: '-0.01em' }}, day.name),
+        isSuggested ? pill('NEXT', { color: day.color, border: day.color }) : null
+      ),
+      el('div', { style: { fontSize: '12px', color: COL.textDim, fontFamily: 'ui-monospace, monospace' }},
+        `${day.exercises.length} exercises · ${day.timeEstimate}`),
+      lastForDay ? el('div', { style: { fontSize: '11px', color: COL.textFaint, marginTop: '4px' }},
+        `Last: ${fmtDate(lastForDay.date)} · ${Math.round(lastForDay.volume).toLocaleString()} vol`) : null
+    );
+    btn.appendChild(meta);
+    btn.appendChild(el('span', { style: { fontSize: '20px', color: COL.textDim }}, '›'));
+    wrap.appendChild(btn);
+  }
+
+  // Recent sessions
+  const recent = state.sessions.slice(-3).reverse();
+  if (recent.length > 0) {
+    const head = el('div', { style: {
+      fontSize: '11px', letterSpacing: '0.2em', color: COL.textFaint, fontWeight: '700',
+      margin: '24px 0 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+    }},
+      el('span', {}, 'RECENT SESSIONS'),
+      el('button', {
+        onclick: () => setView({ name: 'history' }),
+        style: { background: 'transparent', border: 'none', color: COL.accent, fontSize: '11px', fontWeight: '700', letterSpacing: '0.1em', cursor: 'pointer' }
+      }, 'ALL →')
+    );
+    wrap.appendChild(head);
+    for (const s of recent) {
+      wrap.appendChild(el('div', { style: {
+        background: COL.panel, border: `1px solid ${COL.border}`, borderRadius: '10px',
+        padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        marginBottom: '6px'
+      }},
+        el('div', {},
+          el('div', { style: { fontSize: '14px', fontWeight: '700', color: PROGRAM[s.day].color }}, PROGRAM[s.day].name),
+          el('div', { style: { fontSize: '11px', color: COL.textFaint }}, fmtDate(s.date))
+        ),
+        el('div', { style: { fontFamily: 'ui-monospace, monospace', fontSize: '13px', color: COL.textDim }},
+          `${Math.round(s.volume).toLocaleString()} vol`)
+      ));
+    }
+  }
+
+  // Footer
+  wrap.appendChild(el('div', { style: { display: 'flex', gap: '8px', marginTop: '24px' }},
+    bigBtn('📊 Body Comp', () => setView({ name: 'bodycomp' }), { variant: 'secondary', style: { flex: '1', padding: '12px' }}),
+    bigBtn('💾 Backup', () => setView({ name: 'export' }), { variant: 'secondary', style: { flex: '1', padding: '12px' }})
+  ));
+
+  // Storage status
+  let storageOk = true;
+  try { localStorage.setItem('__test', '1'); localStorage.removeItem('__test'); } catch { storageOk = false; }
+  const statusStrip = el('div', { style: {
+    marginTop: '24px', padding: '10px 12px',
+    background: storageOk ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.1)',
+    border: `1px solid ${storageOk ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.3)'}`,
+    borderRadius: '8px', fontSize: '11px', color: COL.textDim,
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px'
+  }},
+    el('div', { style: { flex: '1', minWidth: '0' }},
+      el('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' }},
+        el('span', { style: { width: '6px', height: '6px', borderRadius: '50%', background: storageOk ? COL.green : COL.red, display: 'inline-block' }}),
+        el('span', { style: { fontWeight: '700', color: storageOk ? COL.green : COL.red }}, storageOk ? 'STORAGE OK' : 'STORAGE ERROR'),
+        el('span', { style: { color: COL.textFaint }}, '·'),
+        el('span', { style: { fontFamily: 'ui-monospace, monospace' }},
+          `${state.sessions.length}s · ${state.readiness.length}r · ${state.bodyComp.length}b`)
+      )
+    ),
+    el('button', {
+      onclick: () => {
+        state.sessions = load(KEYS.sessions, []);
+        state.readiness = load(KEYS.readiness, []);
+        state.bodyComp = load(KEYS.bodyComp, []);
+        showToast(`Reloaded: ${state.sessions.length} sessions · ${state.readiness.length} readiness · ${state.bodyComp.length} body comp`, COL.blue);
+      },
+      style: {
+        background: 'transparent', border: `1px solid ${COL.border}`,
+        color: COL.textDim, padding: '6px 10px', borderRadius: '6px',
+        fontSize: '10px', fontWeight: '700', letterSpacing: '0.1em', cursor: 'pointer', flexShrink: '0'
+      }
+    }, 'VERIFY')
+  );
+  wrap.appendChild(statusStrip);
+
+  return wrap;
+}
+
+// =================== SESSION ===================
+function viewSession() {
+  const dayKey = state.view.day;
+  const day = PROGRAM[dayKey];
+  const prevSession = [...state.sessions].reverse().find(s => s.day === dayKey);
+  const totalVolume = Object.values(state.sessionLogs).reduce((sum, sets) => {
+    return sum + sets.reduce((s, set) => {
+      return s + ((parseFloat(set.wt) || 0) * (parseFloat(set.reps) || 0));
+    }, 0);
+  }, 0);
+
+  const wrap = el('div', { style: { paddingBottom: '100px', maxWidth: '500px', margin: '0 auto' }});
+
+  // Sticky header
+  wrap.appendChild(el('div', { style: {
+    position: 'sticky', top: '0', zIndex: '10',
+    background: COL.bg, borderBottom: `1px solid ${COL.border}`,
+    padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+  }},
+    el('button', {
+      onclick: () => setView({ name: 'home' }),
+      style: { background: 'transparent', border: 'none', color: COL.textDim, padding: '4px', cursor: 'pointer', fontSize: '14px' }
+    }, '‹ Back'),
+    el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' }},
+      el('span', { style: { width: '8px', height: '8px', borderRadius: '50%', background: day.color, display: 'inline-block' }}),
+      el('div', { style: { fontSize: '16px', fontWeight: '800' }}, day.name)
+    ),
+    el('div', { style: { fontSize: '12px', color: COL.textDim, fontFamily: 'ui-monospace, monospace' }},
+      Math.round(totalVolume).toLocaleString())
+  ));
+
+  // Primer
+  const primerBox = el('div', { style: { padding: '12px 16px 0' }});
+  primerBox.appendChild(el('button', {
+    onclick: () => { state.showPrimer = !state.showPrimer; render(); },
+    style: {
+      width: '100%', background: COL.panel, border: `1px solid ${COL.border}`,
+      borderRadius: '10px', padding: '12px 14px', cursor: 'pointer', textAlign: 'left',
+      color: COL.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+    }
+  },
+    el('span', { style: { fontSize: '12px', letterSpacing: '0.15em', fontWeight: '700', color: COL.textDim }}, '⚡ MOBILITY PRIMER (5–6 min)'),
+    el('span', { style: { color: COL.textFaint, fontSize: '12px' }}, state.showPrimer ? '▲' : '▼')
+  ));
+  if (state.showPrimer) {
+    const box = el('div', { style: {
+      background: COL.panel2, border: `1px solid ${COL.border}`, borderTop: 'none',
+      borderRadius: '0 0 10px 10px', padding: '12px 14px', marginTop: '-1px'
+    }});
+    day.primer.forEach((p, i) => {
+      box.appendChild(el('div', { style: { fontSize: '13px', color: COL.text, padding: '4px 0', display: 'flex', gap: '8px' }},
+        el('span', { style: { color: COL.textFaint, fontFamily: 'ui-monospace, monospace', minWidth: '16px' }}, `${i+1}.`),
+        el('span', {}, p)
+      ));
+    });
+    primerBox.appendChild(box);
+  }
+  wrap.appendChild(primerBox);
+
+  // Exercises
+  const exList = el('div', { style: { padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '12px' }});
+  day.exercises.forEach((ex, idx) => {
+    const isActive = state.activeIdx === idx;
+    const exLogs = state.sessionLogs[ex.id];
+    const completed = exLogs.filter(s => s.wt && s.reps).length;
+    const prev = prevSession?.logs?.[ex.id];
+    const sug = suggestProgression(ex, prevSession, state.readiness);
+
+    const card = el('div', { style: {
+      background: COL.panel, border: `1px solid ${isActive ? day.color : COL.border}`,
+      borderRadius: '14px', overflow: 'hidden', transition: 'border-color 200ms'
+    }});
+
+    // Header
+    const head = el('button', {
+      onclick: () => { state.activeIdx = isActive ? -1 : idx; render(); },
+      style: {
+        width: '100%', background: 'transparent', border: 'none',
+        padding: '14px 16px', cursor: 'pointer', textAlign: 'left',
+        color: COL.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+      }
+    });
+    const headInfo = el('div', { style: { flex: '1' }},
+      el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }},
+        el('span', { style: { fontFamily: 'ui-monospace, monospace', fontSize: '11px', fontWeight: '700', color: COL.textFaint, minWidth: '18px' }}, `${idx+1}.`),
+        el('span', { style: { fontSize: '15px', fontWeight: '700', letterSpacing: '-0.01em' }}, ex.name)
+      ),
+      el('div', { style: { display: 'flex', gap: '6px', marginLeft: '26px', flexWrap: 'wrap' }},
+        pill(`${ex.sets}×${ex.reps}`),
+        pill(`Rest ${ex.rest}`),
+        pill(`RPE ${ex.rpe}`, { color: COL.accent, border: 'rgba(250,204,21,0.3)' }),
+        (sug.suggestedWeight && !isActive) ? pill(`→ ${sug.suggestedWeight} lb`, { color: sug.color, border: sug.color + '55' }) : null
+      )
+    );
+    head.appendChild(headInfo);
+    head.appendChild(el('span', { style: {
+      fontFamily: 'ui-monospace, monospace', fontSize: '13px', fontWeight: '700',
+      color: completed === ex.sets ? COL.green : COL.textDim, marginLeft: '8px'
+    }}, `${completed}/${ex.sets}`));
+    card.appendChild(head);
+
+    // Expanded
+    if (isActive) {
+      const body = el('div', { style: { padding: '0 16px 16px', borderTop: `1px solid ${COL.border}` }});
+
+      // Suggestion
+      if (sug.suggestedWeight) {
+        const sugBox = el('div', { style: {
+          background: COL.panel2, border: `1px solid ${sug.color}40`, borderLeft: `3px solid ${sug.color}`,
+          borderRadius: '8px', padding: '12px 14px', marginTop: '12px', marginBottom: '12px'
+        }});
+        sugBox.appendChild(el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }},
+          el('div', { style: { flex: '1' }},
+            el('div', { style: { fontSize: '10px', letterSpacing: '0.18em', fontWeight: '800', color: sug.color, marginBottom: '4px' }}, `SUGGESTED · ${sug.label}`),
+            el('div', { style: { fontFamily: 'ui-monospace, monospace', fontSize: '20px', fontWeight: '800', color: COL.text, letterSpacing: '-0.02em', marginBottom: '4px' }},
+              `${sug.suggestedWeight} lb × ${ex.repMin === ex.repMax ? ex.repMin : `${ex.repMin}-${ex.repMax}`}`),
+            el('div', { style: { fontSize: '11px', color: COL.textDim, lineHeight: '1.4' }}, sug.rationale)
+          ),
+          el('button', {
+            onclick: () => {
+              state.sessionLogs[ex.id] = state.sessionLogs[ex.id].map(s => ({ ...s, wt: String(sug.suggestedWeight) }));
+              render();
+            },
+            style: {
+              background: sug.color, color: '#000', border: 'none', borderRadius: '8px',
+              padding: '8px 12px', fontSize: '11px', fontWeight: '800', letterSpacing: '0.08em',
+              cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: '0'
+            }
+          }, 'APPLY')
+        ));
+        body.appendChild(sugBox);
+      } else if (sug.label === 'NO HISTORY' || sug.label === 'MAINTAIN' || sug.label === 'NO DATA') {
+        body.appendChild(el('div', { style: {
+          background: COL.panel2, borderRadius: '8px', padding: '10px 12px', marginTop: '12px', marginBottom: '8px',
+          fontSize: '12px', color: COL.textDim, fontStyle: 'italic'
+        }}, sug.rationale));
+      }
+
+      // Cues toggle
+      body.appendChild(el('button', {
+        onclick: () => { state.expandedCues[ex.id] = !state.expandedCues[ex.id]; render(); },
+        style: {
+          background: 'transparent', border: 'none', color: COL.textDim,
+          fontSize: '12px', padding: '0 0 8px', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.1em', fontWeight: '600'
+        }
+      }, `ⓘ ${state.expandedCues[ex.id] ? 'HIDE CUES' : 'SHOW CUES'}`));
+
+      if (state.expandedCues[ex.id]) {
+        body.appendChild(el('div', { style: {
+          background: COL.panel2, borderRadius: '8px', padding: '10px 12px',
+          fontSize: '13px', color: COL.text, lineHeight: '1.5', marginBottom: '12px',
+          borderLeft: `3px solid ${day.color}`
+        }}, ex.cues));
+      }
+
+      // Last session reference
+      if (prev) {
+        const prevSummary = prev.map(s => s.wt && s.reps ? `${s.wt}×${s.reps}` : '—').join(' · ');
+        const prevRPE = prevSession?.exerciseRPE?.[ex.id];
+        body.appendChild(el('div', { style: {
+          fontSize: '11px', color: COL.textFaint, marginBottom: '10px',
+          fontFamily: 'ui-monospace, monospace', letterSpacing: '0.02em'
+        }}, `LAST: ${prevSummary}${prevRPE ? ` @ RPE ${prevRPE}` : ''}`));
+      }
+
+      // Set inputs
+      const setsBox = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' }});
+      exLogs.forEach((set, sIdx) => {
+        const filled = set.wt && set.reps;
+        const row = el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' }});
+        row.appendChild(el('div', { style: {
+          width: '28px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'ui-monospace, monospace', fontSize: '13px', fontWeight: '700',
+          color: filled ? day.color : COL.textFaint,
+          background: filled ? `${day.color}15` : 'transparent', borderRadius: '6px'
+        }}, sIdx + 1));
+        const wtInput = el('input', {
+          type: 'number', inputmode: 'decimal', placeholder: 'lbs', value: set.wt,
+          style: {
+            flex: '1', background: COL.panel2, color: COL.text,
+            border: `1px solid ${filled ? COL.borderStrong : COL.border}`,
+            borderRadius: '8px', padding: '12px 14px', fontSize: '17px', fontWeight: '700',
+            fontFamily: 'ui-monospace, monospace', textAlign: 'center', minWidth: '0', outline: 'none'
+          }
+        });
+        wtInput.addEventListener('input', (e) => {
+          state.sessionLogs[ex.id][sIdx].wt = e.target.value;
+          // Light-touch update: just update the volume in the header without re-rendering everything
+          updateHeaderVolume();
+        });
+        wtInput.addEventListener('blur', () => render());
+        row.appendChild(wtInput);
+        row.appendChild(el('span', { style: { color: COL.textFaint, fontSize: '16px' }}, '×'));
+        const repInput = el('input', {
+          type: 'number', inputmode: 'numeric', placeholder: 'reps', value: set.reps,
+          style: {
+            flex: '1', background: COL.panel2, color: COL.text,
+            border: `1px solid ${filled ? COL.borderStrong : COL.border}`,
+            borderRadius: '8px', padding: '12px 14px', fontSize: '17px', fontWeight: '700',
+            fontFamily: 'ui-monospace, monospace', textAlign: 'center', minWidth: '0', outline: 'none'
+          }
+        });
+        repInput.addEventListener('input', (e) => {
+          state.sessionLogs[ex.id][sIdx].reps = e.target.value;
+          updateHeaderVolume();
+        });
+        repInput.addEventListener('blur', () => render());
+        row.appendChild(repInput);
+        setsBox.appendChild(row);
+      });
+      body.appendChild(setsBox);
+
+      // Per-exercise RPE chips
+      if (ex.kind !== 'power') {
+        const rpeBox = el('div', { style: { marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }});
+        rpeBox.appendChild(el('div', { style: { fontSize: '11px', letterSpacing: '0.12em', fontWeight: '700', color: COL.textDim, flex: '1' }},
+          el('div', {}, 'RPE this exercise'),
+          el('div', { style: { fontSize: '10px', color: COL.textFaint, fontWeight: '500', letterSpacing: '0', textTransform: 'none', marginTop: '2px' }}, '(drives next session)')
+        ));
+        const chips = el('div', { style: { display: 'flex', gap: '4px' }});
+        [7, 7.5, 8, 8.5, 9, 9.5, 10].forEach(r => {
+          const selected = state.sessionExRPE[ex.id] === r;
+          chips.appendChild(el('button', {
+            onclick: () => {
+              state.sessionExRPE[ex.id] = selected ? null : r;
+              render();
+            },
+            style: {
+              background: selected ? day.color : COL.panel2,
+              color: selected ? '#000' : COL.textDim,
+              border: `1px solid ${selected ? day.color : COL.border}`,
+              borderRadius: '6px', padding: '6px 8px', fontSize: '11px', fontWeight: '700',
+              fontFamily: 'ui-monospace, monospace', cursor: 'pointer', minWidth: '30px'
+            }
+          }, r));
+        });
+        rpeBox.appendChild(chips);
+        body.appendChild(rpeBox);
+      }
+
+      card.appendChild(body);
+    }
+
+    exList.appendChild(card);
+  });
+  wrap.appendChild(exList);
+
+  // Post-session
+  const post = el('div', { style: { padding: '4px 16px 16px' }});
+  const postBox = el('div', { style: { background: COL.panel, border: `1px solid ${COL.border}`, borderRadius: '14px', padding: '16px' }});
+  postBox.appendChild(el('div', { style: { fontSize: '11px', letterSpacing: '0.2em', color: COL.textFaint, fontWeight: '700', marginBottom: '12px' }}, 'POST-SESSION'));
+
+  postBox.appendChild(el('div', { style: { marginBottom: '12px' }},
+    el('div', { style: { fontSize: '12px', color: COL.textDim, marginBottom: '6px' }}, 'Session RPE (1–10)'),
+    (() => {
+      const i = el('input', {
+        type: 'number', inputmode: 'decimal', placeholder: 'overall how hard?', value: state.sessionRPE,
+        style: {
+          width: '100%', background: COL.panel2, color: COL.text,
+          border: `1px solid ${COL.border}`, borderRadius: '8px',
+          padding: '12px 14px', fontSize: '16px', fontWeight: '700',
+          fontFamily: 'ui-monospace, monospace', textAlign: 'center', outline: 'none'
+        }
+      });
+      i.addEventListener('input', e => state.sessionRPE = e.target.value);
+      return i;
+    })()
+  ));
+
+  postBox.appendChild(el('div', {},
+    el('div', { style: { fontSize: '12px', color: COL.textDim, marginBottom: '6px' }}, 'Notes (joint check, what to push next time)'),
+    (() => {
+      const t = el('textarea', {
+        rows: '3', placeholder: 'e.g. left shoulder a bit tight on bench; bump deadlift +10 next session',
+        style: {
+          width: '100%', background: COL.panel2, color: COL.text,
+          border: `1px solid ${COL.border}`, borderRadius: '8px',
+          padding: '12px 14px', fontSize: '14px', outline: 'none', resize: 'vertical'
+        }
+      });
+      t.value = state.sessionNotes;
+      t.addEventListener('input', e => state.sessionNotes = e.target.value);
+      return t;
+    })()
+  ));
+  post.appendChild(postBox);
+  wrap.appendChild(post);
+
+  // Save bar
+  wrap.appendChild(el('div', { style: {
+    position: 'fixed', bottom: '0', left: '0', right: '0',
+    background: COL.bg, borderTop: `1px solid ${COL.border}`,
+    padding: '12px 16px', display: 'flex', gap: '10px',
+    maxWidth: '500px', margin: '0 auto', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))'
+  }},
+    bigBtn('✕', () => {
+      if (confirm('Discard this session?')) setView({ name: 'home' });
+    }, { variant: 'secondary', style: { padding: '14px 20px' }}),
+    bigBtn('✓ SAVE SESSION', () => {
+      const session = {
+        date: today(), day: dayKey,
+        logs: state.sessionLogs,
+        exerciseRPE: state.sessionExRPE,
+        volume: totalVolume,
+        sessionRPE: state.sessionRPE,
+        notes: state.sessionNotes,
+        timestamp: Date.now()
+      };
+      const ok = persistSessions([...state.sessions, session]);
+      if (ok) {
+        showToast(`✓ Session saved (${state.sessions.length} total)`);
+        setView({ name: 'home' });
+      } else {
+        showToast('⚠ Save failed — try exporting backup', COL.red);
+      }
+    }, { style: { flex: '1' }})
+  ));
+
+  return wrap;
+}
+
+// Lightweight volume updater so input typing doesn't trigger full re-render
+function updateHeaderVolume() {
+  const total = Object.values(state.sessionLogs).reduce((sum, sets) => {
+    return sum + sets.reduce((s, set) => s + ((parseFloat(set.wt) || 0) * (parseFloat(set.reps) || 0)), 0);
+  }, 0);
+  // find the header volume span (the last child of the sticky header)
+  const sticky = root.querySelector('div[style*="position: sticky"]');
+  if (sticky) {
+    const last = sticky.lastElementChild;
+    if (last) last.textContent = Math.round(total).toLocaleString();
+  }
+}
+
+// =================== READINESS MODAL ===================
+function viewReadiness() {
+  const v = state.readinessForm;
+  const arr = ['sleepQual', 'energy', 'mood', 'motivation'].map(k => parseFloat(v[k])).filter(x => !isNaN(x));
+  const s = parseFloat(v.soreness);
+  if (!isNaN(s)) arr.push(11 - s);
+  const avg = arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
+  const action = avg == null ? '' :
+    avg >= 7.5 ? 'GO — push loads' :
+    avg >= 6 ? 'Train as planned' :
+    avg >= 4.5 ? 'Reduce volume 20%' : 'DELOAD or rest';
+  const actionColor = avg == null ? COL.textDim :
+    avg >= 7.5 ? COL.green : avg >= 6 ? COL.accent : avg >= 4.5 ? COL.orange : COL.red;
+
+  const overlay = el('div', { style: {
+    position: 'fixed', inset: '0', background: 'rgba(0,0,0,0.7)', zIndex: '50',
+    display: 'flex', alignItems: 'flex-end', justifyContent: 'center'
+  }});
+  const sheet = el('div', { style: {
+    background: COL.bg, width: '100%', maxWidth: '500px', maxHeight: '92vh',
+    borderRadius: '20px 20px 0 0', overflow: 'auto', borderTop: `1px solid ${COL.borderStrong}`,
+    animation: 'slideUp 200ms ease-out'
+  }});
+
+  sheet.appendChild(el('div', { style: {
+    position: 'sticky', top: '0', background: COL.bg, padding: '16px',
+    borderBottom: `1px solid ${COL.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+  }},
+    el('div', { style: { fontSize: '18px', fontWeight: '800' }}, 'Daily Readiness'),
+    el('button', {
+      onclick: () => setView({ name: 'home' }),
+      style: { background: 'transparent', border: 'none', color: COL.textDim, padding: '4px', cursor: 'pointer', fontSize: '22px' }
+    }, '✕')
+  ));
+
+  const body = el('div', { style: { padding: '16px' }});
+  function field(label, key, type = 'number', hint) {
+    const wrap = el('div', { style: { marginBottom: '12px' }});
+    wrap.appendChild(el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }},
+      el('div', { style: { fontSize: '13px', color: COL.text, fontWeight: '600' }}, label),
+      hint ? el('div', { style: { fontSize: '10px', color: COL.textFaint }}, hint) : null
+    ));
+    const i = el('input', {
+      type, inputmode: type === 'number' ? 'decimal' : 'text',
+      placeholder: type === 'number' ? '0–10' : '', value: v[key] || '',
+      style: {
+        width: '100%', background: COL.panel2, color: COL.text,
+        border: `1px solid ${COL.border}`, borderRadius: '8px',
+        padding: '12px 14px', fontSize: '16px', fontWeight: '700',
+        fontFamily: type === 'number' ? 'ui-monospace, monospace' : 'inherit',
+        textAlign: type === 'number' ? 'center' : 'left', outline: 'none'
+      }
+    });
+    i.addEventListener('input', e => { v[key] = e.target.value; render(); });
+    wrap.appendChild(i);
+    return wrap;
+  }
+
+  body.appendChild(field('Sleep hours', 'sleepHrs', 'number', 'e.g. 7.5'));
+  body.appendChild(field('Sleep quality', 'sleepQual', 'number', '1–10'));
+  body.appendChild(field('Soreness', 'soreness', 'number', '1=fresh, 10=wrecked'));
+  body.appendChild(field('Energy', 'energy', 'number', '1–10'));
+  body.appendChild(field('Mood', 'mood', 'number', '1–10'));
+  body.appendChild(field('Motivation', 'motivation', 'number', '1–10'));
+  body.appendChild(field('Joint tightness?', 'joint', 'text', 'shoulder/back/groin/etc'));
+  body.appendChild(field('Notes', 'notes', 'text'));
+
+  if (avg != null) {
+    body.appendChild(el('div', { style: {
+      background: COL.panel, border: `1px solid ${actionColor}`, borderRadius: '12px',
+      padding: '14px', marginTop: '8px',
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+    }},
+      el('div', {},
+        el('div', { style: { fontSize: '11px', letterSpacing: '0.15em', color: COL.textDim, fontWeight: '700' }}, 'SCORE'),
+        el('div', { style: { fontSize: '32px', fontWeight: '800', color: actionColor, fontFamily: 'ui-monospace, monospace' }}, avg.toFixed(1))
+      ),
+      el('div', { style: { textAlign: 'right' }},
+        el('div', { style: { fontSize: '11px', letterSpacing: '0.15em', color: COL.textDim, fontWeight: '700' }}, 'ACTION'),
+        el('div', { style: { fontSize: '14px', fontWeight: '700', color: actionColor }}, action)
+      )
+    ));
+  }
+
+  sheet.appendChild(body);
+  sheet.appendChild(el('div', { style: {
+    position: 'sticky', bottom: '0', background: COL.bg, padding: '16px',
+    borderTop: `1px solid ${COL.border}`, display: 'flex', gap: '10px',
+    paddingBottom: 'calc(16px + env(safe-area-inset-bottom))'
+  }},
+    bigBtn('Cancel', () => setView({ name: 'home' }), { variant: 'secondary' }),
+    bigBtn('Save Readiness', () => {
+      if (avg == null) return;
+      const entry = { date: today(), ...v, avg, action, timestamp: Date.now() };
+      const ok = persistReadiness([...state.readiness, entry]);
+      if (ok) { showToast('✓ Readiness logged'); setView({ name: 'home' }); }
+      else showToast('⚠ Save failed', COL.red);
+    }, { disabled: avg == null, style: { flex: '1' }})
+  ));
+
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
+// =================== BODY COMP MODAL ===================
+function viewBodyComp() {
+  const v = state.bodyCompForm;
+  const lbm = v.bw && v.bf ? (parseFloat(v.bw) * (1 - parseFloat(v.bf) / 100)).toFixed(1) : null;
+
+  const overlay = el('div', { style: {
+    position: 'fixed', inset: '0', background: 'rgba(0,0,0,0.7)', zIndex: '50',
+    display: 'flex', alignItems: 'flex-end', justifyContent: 'center'
+  }});
+  const sheet = el('div', { style: {
+    background: COL.bg, width: '100%', maxWidth: '500px', maxHeight: '92vh',
+    borderRadius: '20px 20px 0 0', overflow: 'auto', borderTop: `1px solid ${COL.borderStrong}`,
+    animation: 'slideUp 200ms ease-out'
+  }});
+
+  sheet.appendChild(el('div', { style: {
+    position: 'sticky', top: '0', background: COL.bg, padding: '16px',
+    borderBottom: `1px solid ${COL.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: '1'
+  }},
+    el('div', { style: { fontSize: '18px', fontWeight: '800' }}, 'Weekly Check-In'),
+    el('button', {
+      onclick: () => setView({ name: 'home' }),
+      style: { background: 'transparent', border: 'none', color: COL.textDim, padding: '4px', cursor: 'pointer', fontSize: '22px' }
+    }, '✕')
+  ));
+
+  function smallField(label, key, type = 'number', placeholder) {
+    const wrap = el('div', { style: { flex: '1', minWidth: '0' }});
+    wrap.appendChild(el('div', { style: { fontSize: '11px', color: COL.textDim, fontWeight: '600', marginBottom: '5px' }}, label));
+    const i = el('input', {
+      type, inputmode: type === 'number' ? 'decimal' : 'text',
+      placeholder: placeholder || '', value: v[key] || '',
+      style: {
+        width: '100%', background: COL.panel2, color: COL.text,
+        border: `1px solid ${COL.border}`, borderRadius: '8px',
+        padding: '10px 12px', fontSize: '15px', fontWeight: '700',
+        fontFamily: type === 'number' ? 'ui-monospace, monospace' : 'inherit',
+        textAlign: type === 'number' ? 'center' : 'left', outline: 'none'
+      }
+    });
+    i.addEventListener('input', e => { v[key] = e.target.value; if (key === 'bw' || key === 'bf') render(); });
+    wrap.appendChild(i);
+    return wrap;
+  }
+
+  const body = el('div', { style: { padding: '16px' }});
+
+  body.appendChild(el('div', { style: { fontSize: '11px', letterSpacing: '0.15em', color: COL.textFaint, fontWeight: '700', marginBottom: '8px' }}, 'BODY COMPOSITION'));
+  body.appendChild(el('div', { style: { display: 'flex', gap: '8px', marginBottom: '12px' }},
+    smallField('Week #', 'weekNum'),
+    smallField('BW (lbs)', 'bw'),
+    smallField('Waist (in)', 'waist'),
+    smallField('Est BF %', 'bf')
+  ));
+  if (lbm) {
+    body.appendChild(el('div', { style: {
+      background: COL.panel, border: `1px solid ${COL.border}`, borderRadius: '8px',
+      padding: '10px 14px', marginBottom: '16px',
+      display: 'flex', justifyContent: 'space-between'
+    }},
+      el('span', { style: { fontSize: '12px', color: COL.textDim }}, 'Est. Lean Body Mass'),
+      el('span', { style: { fontFamily: 'ui-monospace, monospace', fontWeight: '700', color: COL.accent, fontSize: '15px' }}, `${lbm} lbs`)
+    ));
+  }
+
+  body.appendChild(el('div', { style: { fontSize: '11px', letterSpacing: '0.15em', color: COL.textFaint, fontWeight: '700', marginBottom: '8px' }}, 'TOP SETS THIS WEEK'));
+  body.appendChild(el('div', { style: { display: 'flex', gap: '8px', marginBottom: '12px' }},
+    smallField('Deadlift', 'dlTop', 'text', 'e.g. 315×5'),
+    smallField('Bench', 'benchTop', 'text', 'e.g. 205×6')
+  ));
+  body.appendChild(el('div', { style: { display: 'flex', gap: '8px', marginBottom: '16px' }},
+    smallField('Squat', 'squatTop', 'text', 'e.g. 245×7'),
+    smallField('OHP', 'ohpTop', 'text', 'e.g. 115×8')
+  ));
+
+  body.appendChild(el('div', { style: { fontSize: '11px', letterSpacing: '0.15em', color: COL.textFaint, fontWeight: '700', marginBottom: '8px' }}, 'OTHER'));
+  body.appendChild(el('div', { style: { display: 'flex', gap: '8px', marginBottom: '12px' }},
+    smallField('Mobility check', 'mobility', 'text', 'tight areas'),
+    smallField('Cardio (min)', 'cardioMin')
+  ));
+  body.appendChild(smallField('Notes', 'notes', 'text'));
+
+  // Recent
+  const recent = state.bodyComp.slice(-5).reverse();
+  if (recent.length > 0) {
+    body.appendChild(el('div', { style: { fontSize: '11px', letterSpacing: '0.15em', color: COL.textFaint, fontWeight: '700', margin: '20px 0 8px' }}, 'RECENT'));
+    for (const e of recent) {
+      body.appendChild(el('div', { style: {
+        background: COL.panel, border: `1px solid ${COL.border}`, borderRadius: '8px',
+        padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px'
+      }},
+        el('div', { style: { fontSize: '12px', color: COL.textDim }}, fmtDate(e.date)),
+        el('div', { style: { display: 'flex', gap: '12px', fontFamily: 'ui-monospace, monospace', fontSize: '12px' }},
+          el('span', { style: { color: COL.text, fontWeight: '700' }}, `${e.bw} lbs`),
+          e.lbm ? el('span', { style: { color: COL.accent }}, `${e.lbm} LBM`) : null
+        )
+      ));
+    }
+  }
+
+  sheet.appendChild(body);
+  sheet.appendChild(el('div', { style: {
+    position: 'sticky', bottom: '0', background: COL.bg, padding: '16px',
+    borderTop: `1px solid ${COL.border}`, display: 'flex', gap: '10px',
+    paddingBottom: 'calc(16px + env(safe-area-inset-bottom))'
+  }},
+    bigBtn('Cancel', () => setView({ name: 'home' }), { variant: 'secondary' }),
+    bigBtn('Save Entry', () => {
+      if (!v.bw) return;
+      const entry = { date: today(), ...v, lbm, timestamp: Date.now() };
+      const ok = persistBodyComp([...state.bodyComp, entry]);
+      if (ok) { showToast('✓ Body comp saved'); setView({ name: 'home' }); }
+      else showToast('⚠ Save failed', COL.red);
+    }, { disabled: !v.bw, style: { flex: '1' }})
+  ));
+
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
+// =================== HISTORY ===================
+function viewHistory() {
+  const overlay = el('div', { style: {
+    position: 'fixed', inset: '0', background: 'rgba(0,0,0,0.7)', zIndex: '50',
+    display: 'flex', alignItems: 'flex-end', justifyContent: 'center'
+  }});
+  const sheet = el('div', { style: {
+    background: COL.bg, width: '100%', maxWidth: '500px', maxHeight: '92vh',
+    borderRadius: '20px 20px 0 0', overflow: 'auto', borderTop: `1px solid ${COL.borderStrong}`,
+    animation: 'slideUp 200ms ease-out'
+  }});
+
+  sheet.appendChild(el('div', { style: {
+    position: 'sticky', top: '0', background: COL.bg, padding: '16px',
+    borderBottom: `1px solid ${COL.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: '1'
+  }},
+    el('div', { style: { fontSize: '18px', fontWeight: '800' }}, 'Session History'),
+    el('button', {
+      onclick: () => setView({ name: 'home' }),
+      style: { background: 'transparent', border: 'none', color: COL.textDim, padding: '4px', cursor: 'pointer', fontSize: '22px' }
+    }, '✕')
+  ));
+
+  const body = el('div', { style: { padding: '16px' }});
+  if (state.sessions.length === 0) {
+    body.appendChild(el('div', { style: { color: COL.textDim, textAlign: 'center', padding: '40px' }}, 'No sessions logged yet.'));
+  } else {
+    [...state.sessions].reverse().forEach(s => {
+      const day = PROGRAM[s.day];
+      const card = el('div', { style: {
+        background: COL.panel, border: `1px solid ${COL.border}`, borderRadius: '10px',
+        padding: '14px', marginBottom: '8px'
+      }});
+      card.appendChild(el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }},
+        el('div', {},
+          el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' }},
+            el('span', { style: { width: '8px', height: '8px', borderRadius: '50%', background: day.color, display: 'inline-block' }}),
+            el('span', { style: { fontSize: '15px', fontWeight: '800' }}, day.name)
+          ),
+          el('div', { style: { fontSize: '12px', color: COL.textFaint, marginTop: '2px' }}, fmtDate(s.date))
+        ),
+        el('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' }},
+          el('span', { style: { fontFamily: 'ui-monospace, monospace', fontSize: '13px', color: COL.textDim }},
+            `${Math.round(s.volume).toLocaleString()} vol`),
+          el('button', {
+            onclick: () => {
+              if (confirm('Delete this session?')) {
+                persistSessions(state.sessions.filter(x => x.timestamp !== s.timestamp));
+                showToast('Session deleted', COL.blue);
+              }
+            },
+            style: { background: 'transparent', border: 'none', color: COL.textFaint, cursor: 'pointer', padding: '4px', fontSize: '14px' }
+          }, '✕')
+        )
+      ));
+      day.exercises.forEach(ex => {
+        const sets = s.logs[ex.id] || [];
+        const summary = sets.filter(set => set.wt && set.reps).map(set => `${set.wt}×${set.reps}`).join(' · ');
+        if (!summary) return;
+        card.appendChild(el('div', { style: { display: 'flex', gap: '8px', fontSize: '12px', marginBottom: '2px' }},
+          el('span', { style: { color: COL.textDim, minWidth: '80px', flexShrink: '0' }}, ex.name.split(' ').slice(0, 2).join(' ')),
+          el('span', { style: { color: COL.text, fontFamily: 'ui-monospace, monospace' }}, summary)
+        ));
+      });
+      if (s.notes) {
+        card.appendChild(el('div', { style: { fontSize: '12px', color: COL.textFaint, marginTop: '8px', paddingTop: '8px', borderTop: `1px solid ${COL.border}`, fontStyle: 'italic' }}, s.notes));
+      }
+      body.appendChild(card);
+    });
+  }
+  sheet.appendChild(body);
+  overlay.appendChild(sheet);
+  return overlay;
+}
+
+// =================== EXPORT / BACKUP ===================
+function viewExport() {
+  const overlay = el('div', { style: {
+    position: 'fixed', inset: '0', background: 'rgba(0,0,0,0.7)', zIndex: '50',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
+  }});
+  const card = el('div', { style: {
+    background: COL.bg, width: '100%', maxWidth: '400px',
+    borderRadius: '16px', border: `1px solid ${COL.borderStrong}`, padding: '20px'
+  }});
+
+  card.appendChild(el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }},
+    el('div', { style: { fontSize: '18px', fontWeight: '800' }}, 'Backup & Export'),
+    el('button', {
+      onclick: () => setView({ name: 'home' }),
+      style: { background: 'transparent', border: 'none', color: COL.textDim, padding: '4px', cursor: 'pointer', fontSize: '22px' }
+    }, '✕')
+  ));
+
+  card.appendChild(el('div', { style: { fontSize: '12px', color: COL.textDim, marginBottom: '14px', lineHeight: '1.5' }},
+    'Download CSV for spreadsheets, or full JSON backup for restore. Recommend backing up weekly.'));
+
+  const buttons = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '10px' }});
+
+  buttons.appendChild(bigBtn(
+    el('div', { style: { display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }},
+      el('span', {}, '📥 Sessions CSV'),
+      el('span', { style: { fontSize: '12px', opacity: '0.7' }}, `${state.sessions.length} sessions`)
+    ),
+    () => {
+      const rows = [['Date', 'Day', 'Exercise', 'Set', 'Weight', 'Reps', 'Volume', 'Exercise RPE', 'Session RPE', 'Notes']];
+      state.sessions.forEach(s => {
+        const day = PROGRAM[s.day];
+        day.exercises.forEach(ex => {
+          const sets = s.logs[ex.id] || [];
+          const exRPE = s.exerciseRPE?.[ex.id] || '';
+          sets.forEach((set, i) => {
+            if (set.wt || set.reps) {
+              const vol = (parseFloat(set.wt) || 0) * (parseFloat(set.reps) || 0);
+              rows.push([s.date, day.name, ex.name, i + 1, set.wt, set.reps, vol,
+                i === 0 ? exRPE : '', i === 0 ? s.sessionRPE : '', i === 0 ? s.notes : '']);
+            }
+          });
+        });
+      });
+      downloadCSV(`ppl_sessions_${today()}.csv`, rows);
+    },
+    { disabled: state.sessions.length === 0 }
+  ));
+
+  buttons.appendChild(bigBtn(
+    el('div', { style: { display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }},
+      el('span', {}, '📥 Readiness CSV'),
+      el('span', { style: { fontSize: '12px', opacity: '0.7' }}, `${state.readiness.length} entries`)
+    ),
+    () => {
+      const rows = [['Date', 'Sleep Hrs', 'Sleep Qual', 'Soreness', 'Energy', 'Mood', 'Motivation', 'Avg', 'Action', 'Joint', 'Notes']];
+      state.readiness.forEach(r => rows.push([r.date, r.sleepHrs, r.sleepQual, r.soreness, r.energy, r.mood, r.motivation, r.avg?.toFixed(1), r.action, r.joint, r.notes]));
+      downloadCSV(`ppl_readiness_${today()}.csv`, rows);
+    },
+    { variant: 'secondary', disabled: state.readiness.length === 0 }
+  ));
+
+  buttons.appendChild(bigBtn(
+    el('div', { style: { display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }},
+      el('span', {}, '📥 Body Comp CSV'),
+      el('span', { style: { fontSize: '12px', opacity: '0.7' }}, `${state.bodyComp.length} entries`)
+    ),
+    () => {
+      const rows = [['Date', 'Week', 'BW', 'Waist', 'BF%', 'LBM', 'DL', 'Bench', 'Squat', 'OHP', 'Mobility', 'Cardio', 'Notes']];
+      state.bodyComp.forEach(b => rows.push([b.date, b.weekNum, b.bw, b.waist, b.bf, b.lbm, b.dlTop, b.benchTop, b.squatTop, b.ohpTop, b.mobility, b.cardioMin, b.notes]));
+      downloadCSV(`ppl_bodycomp_${today()}.csv`, rows);
+    },
+    { variant: 'secondary', disabled: state.bodyComp.length === 0 }
+  ));
+
+  buttons.appendChild(el('div', { style: { borderTop: `1px solid ${COL.border}`, margin: '8px 0' }}));
+
+  buttons.appendChild(bigBtn('💾 Full JSON Backup', () => {
+    const backup = {
+      exportedAt: new Date().toISOString(),
+      version: 1,
+      sessions: state.sessions,
+      readiness: state.readiness,
+      bodyComp: state.bodyComp
+    };
+    downloadJSON(`ppl_backup_${today()}.json`, backup);
+  }, { variant: 'secondary' }));
+
+  buttons.appendChild(el('label', {
+    style: {
+      background: 'transparent', border: `1px solid ${COL.borderStrong}`,
+      color: COL.text, padding: '14px 18px', borderRadius: '10px',
+      fontSize: '15px', fontWeight: '700', textAlign: 'center', cursor: 'pointer', display: 'block'
+    }
+  }, '📤 Restore from JSON', (() => {
+    const input = el('input', { type: 'file', accept: '.json', style: { display: 'none' }});
+    input.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const data = JSON.parse(ev.target.result);
+          if (!confirm(`Restore ${data.sessions?.length || 0} sessions, ${data.readiness?.length || 0} readiness, ${data.bodyComp?.length || 0} body comp? This REPLACES current data.`)) return;
+          if (data.sessions) persistSessions(data.sessions);
+          if (data.readiness) persistReadiness(data.readiness);
+          if (data.bodyComp) persistBodyComp(data.bodyComp);
+          showToast('✓ Restored from backup');
+          setView({ name: 'home' });
+        } catch (err) { showToast('⚠ Invalid backup file', COL.red); }
+      };
+      reader.readAsText(file);
+    });
+    return input;
+  })()));
+
+  card.appendChild(buttons);
+  overlay.appendChild(card);
+  return overlay;
+}
+
+// =================== MAIN RENDER ===================
+function render() {
+  root.innerHTML = '';
+  // Toast
+  if (state.toast) {
+    root.appendChild(el('div', { style: {
+      position: 'fixed', top: 'calc(16px + env(safe-area-inset-top))', left: '50%',
+      transform: 'translateX(-50%)',
+      background: COL.panel, border: `1px solid ${state.toast.color}`, borderLeft: `3px solid ${state.toast.color}`,
+      color: COL.text, padding: '10px 16px', borderRadius: '10px',
+      fontSize: '13px', fontWeight: '600', zIndex: '100',
+      maxWidth: 'calc(100vw - 32px)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+      animation: 'fadeIn 200ms ease-out'
+    }}, state.toast.msg));
+  }
+
+  if (state.view.name === 'home') root.appendChild(viewHome());
+  else if (state.view.name === 'session') root.appendChild(viewSession());
+
+  if (state.view.name === 'readiness') root.appendChild(viewReadiness());
+  if (state.view.name === 'bodycomp') root.appendChild(viewBodyComp());
+  if (state.view.name === 'history') root.appendChild(viewHistory());
+  if (state.view.name === 'export') root.appendChild(viewExport());
+}
+
+// On modals, also render home behind. Tweak: if a modal is open and home is not yet rendered, draw it first.
+const _origRender = render;
+render = function() {
+  root.innerHTML = '';
+  if (state.toast) {
+    root.appendChild(el('div', { style: {
+      position: 'fixed', top: 'calc(16px + env(safe-area-inset-top))', left: '50%',
+      transform: 'translateX(-50%)',
+      background: COL.panel, border: `1px solid ${state.toast.color}`, borderLeft: `3px solid ${state.toast.color}`,
+      color: COL.text, padding: '10px 16px', borderRadius: '10px',
+      fontSize: '13px', fontWeight: '600', zIndex: '100',
+      maxWidth: 'calc(100vw - 32px)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+      animation: 'fadeIn 200ms ease-out'
+    }}, state.toast.msg));
+  }
+  // Always render base view
+  if (state.view.name === 'session') {
+    root.appendChild(viewSession());
+  } else {
+    root.appendChild(viewHome());
+  }
+  // Overlay modals
+  if (state.view.name === 'readiness') root.appendChild(viewReadiness());
+  else if (state.view.name === 'bodycomp') root.appendChild(viewBodyComp());
+  else if (state.view.name === 'history') root.appendChild(viewHistory());
+  else if (state.view.name === 'export') root.appendChild(viewExport());
+};
+
+render();
+
+// Expose for debugging
+window.__ppl = { state, render, persistSessions, persistReadiness, persistBodyComp, load, save, KEYS };
+</script>
+</body>
+</html>
